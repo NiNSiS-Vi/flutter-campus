@@ -44,12 +44,119 @@ class _CampusHomePageState extends State<CampusHomePage> {
     // 添加更多失物对象
   ];
 
+  String? selectedCategory; // 选择的类别
+  int? selectedMonth; // 选择的月份，使用1-12表示
+  bool showClaimedItems = true; // 是否显示已认领的失物
+
+  void showFilterDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('筛选条件'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButton<String>(
+                value: selectedCategory,
+                hint: Text('选择类别'),
+                items: _RegisterItemScreenState().categories.map((category) {
+                  return DropdownMenuItem<String>(
+                    value: category,
+                    child: Text(category),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    selectedCategory = value;
+                  });
+                },
+              ),
+              SizedBox(height: 16.0),
+              DropdownButton<int>(
+                value: selectedMonth,
+                hint: Text('选择月份'),
+                items: List.generate(12, (index) => index + 1).map((month) {
+                  return DropdownMenuItem<int>(
+                    value: month,
+                    child: Text('$month月'),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    selectedMonth = value;
+                  });
+                },
+              ),
+              SizedBox(height: 16.0),
+              CheckboxListTile(
+                title: Text('显示已认领的失物'),
+                value: showClaimedItems,
+                onChanged: (value) {
+                  setState(() {
+                    showClaimedItems = value ?? false;
+                  });
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              child: Text('确定'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+
+
 
   @override
   Widget build(BuildContext context) {
+    int itemCount = 0;
+    List<LostItem> filteredItems = [];
+
+    for (var item in lostItems) {
+      // 按类别筛选
+      if (selectedCategory != null && item.category != selectedCategory) {
+        continue;
+      }
+
+      // 按月份筛选
+      if (selectedMonth != null && item.time.month != selectedMonth) {
+        continue;
+      }
+
+      // 按认领状态筛选
+      if (!showClaimedItems && item.claimStatus == '已认领') {
+        continue;
+      }
+      filteredItems.add(item);
+    }
+
+    itemCount = filteredItems.length;
+
+    Widget itemBuilder(BuildContext context, int index) {
+      return buildLostItemCard(filteredItems[index]);
+    }
+
+
     return Scaffold(
       appBar: AppBar(
         title: Text('失物登记寻找系统'),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.filter_list),
+            onPressed: () {
+              showFilterDialog(context);
+            },
+          ),
+        ],
       ),
       body: ListView.builder(
         itemCount: lostItems.length,
@@ -80,18 +187,41 @@ class _CampusHomePageState extends State<CampusHomePage> {
       child: ListTile(
         leading: Icon(Icons.category),
         title: Text(item.title),
-        subtitle: Text('拾取时间：${item.time}\n拾取地点：${item.location}'),
+        subtitle: Text('拾取时间：${item.formattedTime}\n拾取地点：${item.location}'),
         trailing: item.claimStatus == '未认领'
-            ? IconButton(
-          icon: Icon(Icons.check),
+            ? ElevatedButton(
+          child: Text('我要认领'),
           onPressed: () {
-            setState(() {
-              item.claimStatus = '已认领';
-              item.claimTime = DateTime.now();
-            });
+            showDialog(
+              context: context,
+              builder: (BuildContext context) {
+                return AlertDialog(
+                  title: Text('确认认领'),
+                  content: Text('您确定要认领这个丢失物品吗？'),
+                  actions: [
+                    TextButton(
+                      child: Text('取消'),
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                    ),
+                    TextButton(
+                      child: Text('确定'),
+                      onPressed: () {
+                        setState(() {
+                          item.claimStatus = '已认领';
+                          item.claimTime = DateTime.now();
+                        });
+                        Navigator.of(context).pop();
+                      },
+                    ),
+                  ],
+                );
+              },
+            );
           },
         )
-            : Text('认领'),
+            : Text('已认领'),
         onTap: () {
           Navigator.push(
             context,
@@ -117,8 +247,6 @@ class _RegisterItemScreenState extends State<RegisterItemScreen> {
   String category = '';
   List<String> categories = ['生活用品', '电子产品', '书籍资料', '证件卡片', '其他'];
   String? selectedCategory;
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -156,7 +284,7 @@ class _RegisterItemScreenState extends State<RegisterItemScreen> {
             ),
             SizedBox(height: 16.0),
             TextField(
-              decoration: InputDecoration(labelText: '失物地点'),
+              decoration: InputDecoration(labelText: '拾取地点'),
               onChanged: (value) {
                 setState(() {
                   location = value;
@@ -169,15 +297,6 @@ class _RegisterItemScreenState extends State<RegisterItemScreen> {
               onChanged: (value) {
                 setState(() {
                   description = value;
-                });
-              },
-            ),
-            SizedBox(height: 16.0),
-            TextField(
-              decoration: InputDecoration(labelText: '拾取地点'),
-              onChanged: (value) {
-                setState(() {
-                  saveLocation = value;
                 });
               },
             ),
@@ -212,7 +331,7 @@ class _RegisterItemScreenState extends State<RegisterItemScreen> {
                 if (title.isNotEmpty && discoveryTime != null && location.isNotEmpty && description.isNotEmpty && saveLocation.isNotEmpty && selectedCategory != null) {
                   LostItem newItem = LostItem(
                     title: title,
-                    time: discoveryTime!, // 直接赋值
+                    time: discoveryTime!,
                     location: location,
                     description: description,
                     saveLocation: saveLocation,
@@ -248,14 +367,14 @@ class LostItemDetailsScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('失物名称：${item.title}'),
-            Text('拾取时间：${item.time}'),
+            Text('拾取时间：${item.formattedTime}'),
             Text('拾取地点：${item.location}'),
             Text('保存地点: ${item.saveLocation}'),
             Text('失物类别：${item.category}'),
             Text('失物说明：${item.description}'),
             Text('认领状态：${item.claimStatus}'),
             if (item.claimStatus == '已认领')
-              Text('认领时间：${item.claimTime}'),
+              Text('认领时间：${item.formattedTime2}'),
           ],
         ),
       ),
@@ -283,4 +402,14 @@ class LostItem {
     required this.saveLocation,
     this.claimTime,
   });
+
+  String get formattedTime {
+    DateFormat formatter = DateFormat('yyyy-MM-dd HH:mm');
+    return formatter.format(time);
+  }
+
+  String get formattedTime2 {
+    DateFormat formatter = DateFormat('yyyy-MM-dd HH:mm');
+    return formatter.format(claimTime!);
+  }
 }
