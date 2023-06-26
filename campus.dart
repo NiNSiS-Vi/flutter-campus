@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:date_time_picker/date_time_picker.dart';
+import 'package:intl/intl.dart';
+
 
 class CampusApp extends StatelessWidget {
   @override
@@ -22,7 +25,8 @@ class _CampusHomePageState extends State<CampusHomePage> {
   List<LostItem> lostItems = [
     LostItem(
       title: '水壶',
-      time: '2023-06-01 09:00',
+      time: DateTime.parse('2023-06-01 09:00'), // 转换成DateTime对象
+      saveLocation: '宿舍一栋',
       location: '图书馆',
       category: '生活用品',
       claimStatus: '未认领',
@@ -30,7 +34,8 @@ class _CampusHomePageState extends State<CampusHomePage> {
     ),
     LostItem(
       title: '钢笔',
-      time: '2023-06-01 09:00',
+      time: DateTime.parse('2023-06-01 09:00'), // 转换成DateTime对象
+      saveLocation: '宿舍二栋',
       location: '操场',
       category: '生活用品',
       claimStatus: '未认领',
@@ -38,6 +43,7 @@ class _CampusHomePageState extends State<CampusHomePage> {
     ),
     // 添加更多失物对象
   ];
+
 
   @override
   Widget build(BuildContext context) {
@@ -74,14 +80,14 @@ class _CampusHomePageState extends State<CampusHomePage> {
       child: ListTile(
         leading: Icon(Icons.category),
         title: Text(item.title),
-        subtitle: Text('时间：${item.time}\n地点：${item.location}'),
+        subtitle: Text('拾取时间：${item.time}\n拾取地点：${item.location}'),
         trailing: item.claimStatus == '未认领'
             ? IconButton(
           icon: Icon(Icons.check),
           onPressed: () {
             setState(() {
               item.claimStatus = '已认领';
-              item.claimTime = DateTime.now().toString();
+              item.claimTime = DateTime.now();
             });
           },
         )
@@ -109,6 +115,9 @@ class _RegisterItemScreenState extends State<RegisterItemScreen> {
   String description = '';
   String saveLocation = '';
   String category = '';
+  List<String> categories = ['生活用品', '电子产品', '书籍资料', '证件卡片', '其他'];
+  String? selectedCategory;
+
 
 
   @override
@@ -131,21 +140,18 @@ class _RegisterItemScreenState extends State<RegisterItemScreen> {
               },
             ),
             SizedBox(height: 16.0),
-            ElevatedButton(
-              child: Text('选择发现时间'),
-              onPressed: () async {
-                final selectedDate = await showDatePicker(
-                  context: context,
-                  initialDate: DateTime.now(),
-                  firstDate: DateTime(2022),
-                  lastDate: DateTime(2030),
-                );
-
-                if (selectedDate != null) {
-                  setState(() {
-                    discoveryTime = selectedDate;
-                  });
-                }
+            DateTimePicker(
+              type: DateTimePickerType.dateTime,
+              dateMask: 'yyyy-MM-dd HH:mm',
+              initialValue: DateTime.now().toString(),
+              firstDate: DateTime(2022),
+              lastDate: DateTime(2030),
+              icon: Icon(Icons.event),
+              dateLabelText: '拾取时间',
+              onChanged: (value) {
+                setState(() {
+                  discoveryTime = DateTime.parse(value);
+                });
               },
             ),
             SizedBox(height: 16.0),
@@ -168,7 +174,7 @@ class _RegisterItemScreenState extends State<RegisterItemScreen> {
             ),
             SizedBox(height: 16.0),
             TextField(
-              decoration: InputDecoration(labelText: '保存地点'),
+              decoration: InputDecoration(labelText: '拾取地点'),
               onChanged: (value) {
                 setState(() {
                   saveLocation = value;
@@ -177,10 +183,25 @@ class _RegisterItemScreenState extends State<RegisterItemScreen> {
             ),
             SizedBox(height: 16.0),
             TextField(
-              decoration: InputDecoration(labelText: '失物类别'),
+              decoration: InputDecoration(labelText: '保存地点'),
               onChanged: (value) {
                 setState(() {
-                  category = value;
+                  saveLocation = value;
+                });
+              },
+            ),
+            DropdownButton<String>(
+              value: selectedCategory,
+              hint: Text('请选择失物类别'),
+              items: categories.map((category) {
+                return DropdownMenuItem<String>(
+                  value: category,
+                  child: Text(category),
+                );
+              }).toList(),
+              onChanged: (value) {
+                setState(() {
+                  selectedCategory = value;
                 });
               },
             ),
@@ -188,11 +209,18 @@ class _RegisterItemScreenState extends State<RegisterItemScreen> {
             ElevatedButton(
               child: Text('提交'),
               onPressed: () {
-                // 执行提交逻辑
-                // 创建 LostItem 对象并提交到数据库
-                // 可以使用相应的变量访问输入的值
-
-                Navigator.pop(context); // 关闭登记界面
+                if (title.isNotEmpty && discoveryTime != null && location.isNotEmpty && description.isNotEmpty && saveLocation.isNotEmpty && selectedCategory != null) {
+                  LostItem newItem = LostItem(
+                    title: title,
+                    time: discoveryTime!, // 直接赋值
+                    location: location,
+                    description: description,
+                    saveLocation: saveLocation,
+                    category: selectedCategory!,
+                    claimStatus: '未认领',
+                  );
+                  Navigator.pop(context, newItem);
+                }
               },
             ),
           ],
@@ -209,6 +237,7 @@ class LostItemDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+
     return Scaffold(
       appBar: AppBar(
         title: Text('失物详情'),
@@ -219,8 +248,9 @@ class LostItemDetailsScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('失物名称：${item.title}'),
-            Text('遗失时间：${item.time}'),
-            Text('失物地点：${item.location}'),
+            Text('拾取时间：${item.time}'),
+            Text('拾取地点：${item.location}'),
+            Text('保存地点: ${item.saveLocation}'),
             Text('失物类别：${item.category}'),
             Text('失物说明：${item.description}'),
             Text('认领状态：${item.claimStatus}'),
@@ -235,12 +265,13 @@ class LostItemDetailsScreen extends StatelessWidget {
 
 class LostItem {
   String title;
-  String time;
+  DateTime time;
   String location;
   String category;
   String description;
   String claimStatus;
-  String claimTime;
+  DateTime? claimTime;
+  String saveLocation;
 
   LostItem({
     required this.title,
@@ -249,6 +280,7 @@ class LostItem {
     required this.category,
     required this.description,
     required this.claimStatus,
-    this.claimTime = '',
+    required this.saveLocation,
+    this.claimTime,
   });
 }
