@@ -47,6 +47,8 @@ class _CampusHomePageState extends State<CampusHomePage> {
   String? selectedCategory; // 选择的类别
   int? selectedMonth; // 选择的月份，使用1-12表示
   bool showClaimedItems = true; // 是否显示已认领的失物
+  List<LostItem> filteredLostItems = []; // 用于存储筛选后的失物列表
+
 
   void showFilterDialog(BuildContext context) {
     showDialog(
